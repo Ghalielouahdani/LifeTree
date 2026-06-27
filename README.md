@@ -34,6 +34,7 @@ http://localhost:8000/pedigree-speed-drawer/
 ## What it does
 
 - Draws pedigree symbols: circle, square, diamond, and affected fill.
+- Marks multiple traits or diseases with gray, red, blue, green, half-fill, and cross styles.
 - Adds common structures quickly: couple, child, sibling, parents, and 3-generation blocks.
 - Keeps diagrams neat with snapping, generation labels, alignment, and arrow-key movement.
 - Supports tracing from a reference image overlay.
@@ -46,7 +47,13 @@ http://localhost:8000/pedigree-speed-drawer/
 | `F` | Add or convert to female / circle |
 | `M` | Add or convert to male / square |
 | `U` | Add or convert to unknown / diamond |
-| `A` | Toggle affected fill |
+| `0` | Clear trait and cross |
+| `A` | Gray affected trait |
+| `R` | Red disease trait |
+| `B` | Blue disease trait |
+| `G` | Green disease trait |
+| `H` | Half-fill carrier trait |
+| `X` | Toggle cross mark |
 | `P` | Create or connect a couple |
 | `C` | Add a child |
 | `S` | Add a sibling |
@@ -60,5 +67,5 @@ http://localhost:8000/pedigree-speed-drawer/
 1. Start the timer.
 2. Load the exam tree image as a reference if you want to trace first.
 3. Use `P`, `C`, and `S` to block out the structure.
-4. Convert symbols with `F`, `M`, `U`, and shade affected members with `A`.
+4. Convert symbols with `F`, `M`, `U`, and mark traits with `A`, `R`, `B`, `G`, `H`, or `X`.
 5. Export or print the result.

@@ -4,6 +4,22 @@ const STAGE_HEIGHT = 1200;
 const GRID_SIZE = 20;
 const PERSON_RADIUS = 36;
 const STORAGE_KEY = "pedigree-sprint-state-v2";
+const TRAITS = {
+  clear: { name: "Clear", fill: "#ffffff" },
+  affected: { name: "Gray", fill: "#858583" },
+  red: { name: "Red", fill: "#c94747" },
+  blue: { name: "Blue", fill: "#3f73ba" },
+  green: { name: "Green", fill: "#4f8a65" },
+  carrier: { name: "Half", fill: "#ffffff" }
+};
+const TRAIT_KEYS = {
+  "0": "clear",
+  a: "affected",
+  r: "red",
+  b: "blue",
+  g: "green",
+  h: "carrier"
+};
 
 const state = {
   nodes: [],
@@ -13,6 +29,8 @@ const state = {
   shape: "female",
   tool: "person",
   affectedMode: false,
+  traitMode: "clear",
+  crossMode: false,
   nextId: 1,
   zoom: 1,
   settings: {
@@ -101,12 +119,19 @@ function bindControls() {
     button.addEventListener("click", () => activateShape(button.dataset.shape, state.selectedNodes.size > 0));
   });
 
+  document.querySelectorAll("[data-trait]").forEach((button) => {
+    button.addEventListener("click", () => setTrait(button.dataset.trait));
+  });
+
+  document.querySelectorAll("[data-cross-toggle]").forEach((button) => {
+    button.addEventListener("click", () => toggleCross());
+  });
+
   els.selectTool.addEventListener("click", () => {
     state.tool = "select";
     render();
   });
 
-  els.affectedBtn.addEventListener("click", () => toggleAffected());
   els.coupleBtn.addEventListener("click", () => insertCouple());
   els.childBtn.addEventListener("click", () => addChild());
   els.siblingBtn.addEventListener("click", () => addSibling());
@@ -146,9 +171,9 @@ function seedSample() {
     createNode(400, 370, "male", "affected"),
     createNode(845, 370, "female", "clear"),
     createNode(1325, 150, "female", "clear"),
-    createNode(1505, 150, "male", "affected"),
-    createNode(1120, 370, "male", "clear"),
-    createNode(985, 600, "unknown", "clear")
+    createNode(1505, 150, "male", "red"),
+    createNode(1120, 370, "male", "carrier"),
+    createNode(985, 600, "unknown", "blue", true)
   ];
 
   state.relationships = [
@@ -161,13 +186,16 @@ function seedSample() {
   state.selectedRelationship = null;
 }
 
-function createNode(x, y, shape = state.shape, status = state.affectedMode ? "affected" : "clear") {
+function createNode(x, y, shape = state.shape, trait = state.traitMode, crossed = state.crossMode) {
+  const normalizedTrait = normalizeTrait(trait);
   return {
     id: `n${state.nextId++}`,
     x: snap(x),
     y: snap(y),
     shape,
-    status,
+    trait: normalizedTrait,
+    status: normalizedTrait,
+    crossed: Boolean(crossed),
     label: ""
   };
 }
@@ -342,13 +370,29 @@ function renderNodes() {
       }));
     }
 
+    const trait = getNodeTrait(node);
     group.append(drawShape(node, {
-      fill: node.status === "affected" ? "#858583" : "#ffffff",
+      fill: TRAITS[trait].fill,
       stroke: "#111820",
       strokeWidth: 3,
       radiusPad: 0,
       filter: "url(#shapeShadow)"
     }));
+
+    if (trait === "carrier") {
+      group.append(drawCarrierOverlay(node));
+      group.append(drawShape(node, {
+        fill: "none",
+        stroke: "#111820",
+        strokeWidth: 3,
+        radiusPad: 0,
+        filter: ""
+      }));
+    }
+
+    if (node.crossed) {
+      group.append(drawCrossOverlay(node));
+    }
 
     if (node.label) {
       group.append(svg("text", {
@@ -407,6 +451,65 @@ function drawShape(node, options) {
     width: r * 2,
     height: r * 2
   });
+}
+
+function drawCarrierOverlay(node) {
+  const r = PERSON_RADIUS;
+  const attrs = {
+    fill: TRAITS.affected.fill,
+    stroke: "none",
+    "pointer-events": "none"
+  };
+
+  if (node.shape === "female") {
+    return svg("path", {
+      ...attrs,
+      d: `M 0 ${-r} A ${r} ${r} 0 0 0 0 ${r} Z`
+    });
+  }
+
+  if (node.shape === "unknown") {
+    const d = r + 4;
+    return svg("path", {
+      ...attrs,
+      d: `M 0 ${-d} L 0 ${d} L ${-d} 0 Z`
+    });
+  }
+
+  return svg("rect", {
+    ...attrs,
+    x: -r,
+    y: -r,
+    width: r,
+    height: r * 2
+  });
+}
+
+function drawCrossOverlay(node) {
+  const r = node.shape === "unknown" ? PERSON_RADIUS + 8 : PERSON_RADIUS + 3;
+  const group = svg("g", {
+    "pointer-events": "none"
+  });
+  const common = {
+    stroke: "#111820",
+    "stroke-width": 5,
+    "stroke-linecap": "round"
+  };
+  group.append(svg("line", {
+    ...common,
+    x1: -r,
+    y1: -r,
+    x2: r,
+    y2: r
+  }));
+  group.append(svg("line", {
+    ...common,
+    x1: r,
+    y1: -r,
+    x2: -r,
+    y2: r
+  }));
+  return group;
 }
 
 function renderGenerationLabels() {
@@ -588,7 +691,19 @@ function onKeyDown(event) {
 
   if (key === "a") {
     event.preventDefault();
-    toggleAffected();
+    setTrait("affected");
+    return;
+  }
+
+  if (key in TRAIT_KEYS) {
+    event.preventDefault();
+    setTrait(TRAIT_KEYS[key]);
+    return;
+  }
+
+  if (key === "x") {
+    event.preventDefault();
+    toggleCross();
     return;
   }
 
@@ -647,20 +762,47 @@ function activateShape(shape, convertSelected = false) {
 }
 
 function toggleAffected() {
+  setTrait("affected");
+}
+
+function setTrait(trait) {
+  const normalizedTrait = normalizeTrait(trait);
   if (state.selectedNodes.size > 0) {
-    mutate("Fill changed", () => {
+    mutate("Trait changed", () => {
+      for (const id of state.selectedNodes) {
+        const node = findNode(id);
+        if (!node) continue;
+        applyNodeTrait(node, normalizedTrait);
+        if (normalizedTrait === "clear") node.crossed = false;
+      }
+    });
+    return;
+  }
+
+  state.traitMode = normalizedTrait;
+  state.affectedMode = normalizedTrait === "affected";
+  state.tool = "person";
+  if (normalizedTrait === "clear") state.crossMode = false;
+  render();
+  toast(`${TRAITS[normalizedTrait].name} brush`);
+}
+
+function toggleCross() {
+  if (state.selectedNodes.size > 0) {
+    mutate("Cross changed", () => {
       const selected = [...state.selectedNodes].map(findNode).filter(Boolean);
-      const shouldFill = selected.some((node) => node.status !== "affected");
+      const shouldCross = selected.some((node) => !node.crossed);
       selected.forEach((node) => {
-        node.status = shouldFill ? "affected" : "clear";
+        node.crossed = shouldCross;
       });
     });
     return;
   }
 
-  state.affectedMode = !state.affectedMode;
+  state.crossMode = !state.crossMode;
+  state.tool = "person";
   render();
-  toast(state.affectedMode ? "Affected brush on" : "Affected brush off");
+  toast(state.crossMode ? "Cross brush on" : "Cross brush off");
 }
 
 function insertCouple(forceTemplate = false) {
@@ -744,7 +886,7 @@ function addChild() {
       ? Math.max(...existingChildren.map((node) => node.x)) + 170
       : (parentLine ? parentLine.midX : insertionPoint().x);
 
-    const child = createNode(x, y, state.shape, state.affectedMode ? "affected" : "clear");
+    const child = createNode(x, y, state.shape);
     state.nodes.push(child);
     relationship.children.push(child.id);
     reflowChildren(relationship);
@@ -769,7 +911,7 @@ function addSibling() {
 
   mutate("Sibling added", () => {
     const selected = findNode(selectedId);
-    const child = createNode(selected.x + 170, selected.y, state.shape, state.affectedMode ? "affected" : "clear");
+    const child = createNode(selected.x + 170, selected.y, state.shape);
     state.nodes.push(child);
     relationship.children.push(child.id);
     reflowChildren(relationship);
@@ -815,7 +957,7 @@ function insertNuclearFamily() {
     const center = insertionPoint();
     const mother = createNode(center.x - 90, center.y, "female", "clear");
     const father = createNode(center.x + 90, center.y, "male", "clear");
-    const childA = createNode(center.x - 85, center.y + 220, "male", state.affectedMode ? "affected" : "clear");
+    const childA = createNode(center.x - 85, center.y + 220, "male");
     const childB = createNode(center.x + 85, center.y + 220, "female", "clear");
     state.nodes.push(mother, father, childA, childB);
     const relationship = createRelationship([mother.id, father.id], [childA.id, childB.id]);
@@ -1103,6 +1245,8 @@ function snapshot() {
     shape: state.shape,
     tool: state.tool,
     affectedMode: state.affectedMode,
+    traitMode: state.traitMode,
+    crossMode: state.crossMode,
     settings: state.settings
   });
 }
@@ -1114,7 +1258,10 @@ function restoreSnapshot(serialized) {
   state.nextId = Math.max(data.nextId || 1, computeNextId());
   state.shape = data.shape || "female";
   state.tool = data.tool || "person";
-  state.affectedMode = Boolean(data.affectedMode);
+  state.traitMode = normalizeTrait(data.traitMode || (data.affectedMode ? "affected" : "clear"));
+  state.crossMode = Boolean(data.crossMode);
+  state.affectedMode = state.traitMode === "affected";
+  normalizeNodes();
   state.settings = {
     snap: true,
     grid: true,
@@ -1136,6 +1283,8 @@ function autosave() {
       shape: state.shape,
       tool: state.tool,
       affectedMode: state.affectedMode,
+      traitMode: state.traitMode,
+      crossMode: state.crossMode,
       settings: state.settings,
       reference
     }));
@@ -1155,7 +1304,10 @@ function loadSavedState() {
     state.nextId = Math.max(data.nextId || 1, computeNextId());
     state.shape = data.shape || "female";
     state.tool = data.tool || "person";
-    state.affectedMode = Boolean(data.affectedMode);
+    state.traitMode = normalizeTrait(data.traitMode || (data.affectedMode ? "affected" : "clear"));
+    state.crossMode = Boolean(data.crossMode);
+    state.affectedMode = state.traitMode === "affected";
+    normalizeNodes();
     state.settings = {
       snap: true,
       grid: true,
@@ -1177,6 +1329,8 @@ function exportJson() {
     nodes: state.nodes,
     relationships: state.relationships,
     nextId: state.nextId,
+    traitMode: state.traitMode,
+    crossMode: state.crossMode,
     settings: state.settings
   }, null, 2);
   downloadBlob(new Blob([data], { type: "application/json" }), "pedigree-sprint.json");
@@ -1193,6 +1347,10 @@ function handleJsonUpload(event) {
       state.nodes = Array.isArray(data.nodes) ? data.nodes : [];
       state.relationships = Array.isArray(data.relationships) ? data.relationships : [];
       state.nextId = Math.max(data.nextId || 1, computeNextId());
+      state.traitMode = normalizeTrait(data.traitMode || state.traitMode);
+      state.crossMode = Boolean(data.crossMode);
+      state.affectedMode = state.traitMode === "affected";
+      normalizeNodes();
       state.settings = {
         ...state.settings,
         ...(data.settings || {})
@@ -1300,8 +1458,16 @@ function updateControls() {
   document.querySelectorAll("[data-shape]").forEach((button) => {
     button.classList.toggle("is-active", state.tool === "person" && button.dataset.shape === state.shape);
   });
+  document.querySelectorAll("[data-trait]").forEach((button) => {
+    const trait = normalizeTrait(button.dataset.trait);
+    button.classList.toggle("is-active", state.traitMode === trait);
+  });
+  document.querySelectorAll("[data-cross-toggle]").forEach((button) => {
+    const selected = [...state.selectedNodes].map(findNode).filter(Boolean);
+    const crossActive = selected.length ? selected.some((node) => node.crossed) : state.crossMode;
+    button.classList.toggle("is-hot", crossActive);
+  });
   els.selectTool.classList.toggle("is-active", state.tool === "select");
-  els.affectedBtn.classList.toggle("is-hot", state.affectedMode);
   els.snapBtn.classList.toggle("is-on", state.settings.snap);
   els.snapBtn.setAttribute("aria-pressed", String(state.settings.snap));
   els.gridBtn.classList.toggle("is-on", state.settings.grid);
@@ -1340,6 +1506,37 @@ function centerInitialView() {
 function clearSelection() {
   state.selectedNodes.clear();
   state.selectedRelationship = null;
+}
+
+function normalizeNodes() {
+  state.nodes.forEach((node) => {
+    const trait = normalizeTrait(node.trait || node.status);
+    applyNodeTrait(node, trait);
+    node.crossed = Boolean(node.crossed);
+  });
+}
+
+function normalizeTrait(trait) {
+  const aliases = {
+    diseaseRed: "red",
+    diseaseBlue: "blue",
+    diseaseGreen: "green",
+    half: "carrier"
+  };
+  const normalized = aliases[trait] || trait;
+  return Object.prototype.hasOwnProperty.call(TRAITS, normalized) ? normalized : "clear";
+}
+
+function applyNodeTrait(node, trait) {
+  const normalizedTrait = normalizeTrait(trait);
+  node.trait = normalizedTrait;
+  node.status = normalizedTrait;
+}
+
+function getNodeTrait(node) {
+  const trait = normalizeTrait(node.trait || node.status);
+  if (node.trait !== trait || node.status !== trait) applyNodeTrait(node, trait);
+  return trait;
 }
 
 function findNode(id) {

@@ -37,9 +37,33 @@
             <span class="person-icon unknown-icon" aria-hidden="true"></span>
             <kbd>U</kbd>
           </button>
-          <button class="tool-button square-button" id="affectedBtn" title="Affected fill (A)" aria-label="Affected fill">
-            <span class="affected-swatch" aria-hidden="true"></span>
+          <button class="tool-button square-button trait-tool" data-trait="clear" title="Clear trait (0)" aria-label="Clear trait">
+            <span class="trait-swatch trait-clear" aria-hidden="true"></span>
+            <kbd>0</kbd>
+          </button>
+          <button class="tool-button square-button trait-tool" id="affectedBtn" data-trait="affected" title="Affected gray (A)" aria-label="Affected gray">
+            <span class="trait-swatch trait-affected" aria-hidden="true"></span>
             <kbd>A</kbd>
+          </button>
+          <button class="tool-button square-button trait-tool" data-trait="red" title="Disease red (R)" aria-label="Disease red">
+            <span class="trait-swatch trait-red" aria-hidden="true"></span>
+            <kbd>R</kbd>
+          </button>
+          <button class="tool-button square-button trait-tool" data-trait="blue" title="Disease blue (B)" aria-label="Disease blue">
+            <span class="trait-swatch trait-blue" aria-hidden="true"></span>
+            <kbd>B</kbd>
+          </button>
+          <button class="tool-button square-button trait-tool" data-trait="green" title="Disease green (G)" aria-label="Disease green">
+            <span class="trait-swatch trait-green" aria-hidden="true"></span>
+            <kbd>G</kbd>
+          </button>
+          <button class="tool-button square-button trait-tool" data-trait="carrier" title="Carrier half fill (H)" aria-label="Carrier half fill">
+            <span class="trait-swatch trait-carrier" aria-hidden="true"></span>
+            <kbd>H</kbd>
+          </button>
+          <button class="tool-button square-button trait-tool" data-cross-toggle title="Cross mark (X)" aria-label="Cross mark">
+            <span class="cross-swatch" aria-hidden="true"></span>
+            <kbd>X</kbd>
           </button>
         </div>
 
@@ -68,6 +92,47 @@
               <button class="wide-button" id="templateCoupleBtn">Couple</button>
               <button class="wide-button" id="templateNuclearBtn">Parents + 2</button>
               <button class="wide-button" id="templateThreeGenBtn">3 Gen</button>
+            </div>
+          </section>
+
+          <section class="panel-section">
+            <h2>Traits</h2>
+            <div class="trait-grid">
+              <button class="trait-choice" data-trait="clear">
+                <span class="trait-swatch trait-clear" aria-hidden="true"></span>
+                <span>Clear</span>
+                <kbd>0</kbd>
+              </button>
+              <button class="trait-choice" data-trait="affected">
+                <span class="trait-swatch trait-affected" aria-hidden="true"></span>
+                <span>Gray</span>
+                <kbd>A</kbd>
+              </button>
+              <button class="trait-choice" data-trait="red">
+                <span class="trait-swatch trait-red" aria-hidden="true"></span>
+                <span>Red</span>
+                <kbd>R</kbd>
+              </button>
+              <button class="trait-choice" data-trait="blue">
+                <span class="trait-swatch trait-blue" aria-hidden="true"></span>
+                <span>Blue</span>
+                <kbd>B</kbd>
+              </button>
+              <button class="trait-choice" data-trait="green">
+                <span class="trait-swatch trait-green" aria-hidden="true"></span>
+                <span>Green</span>
+                <kbd>G</kbd>
+              </button>
+              <button class="trait-choice" data-trait="carrier">
+                <span class="trait-swatch trait-carrier" aria-hidden="true"></span>
+                <span>Half</span>
+                <kbd>H</kbd>
+              </button>
+              <button class="trait-choice" data-cross-toggle>
+                <span class="cross-swatch" aria-hidden="true"></span>
+                <span>Cross</span>
+                <kbd>X</kbd>
+              </button>
             </div>
           </section>
 
@@ -149,7 +214,13 @@
           <kbd>F</kbd><span>circle</span>
           <kbd>M</kbd><span>square</span>
           <kbd>U</kbd><span>diamond</span>
-          <kbd>A</kbd><span>fill</span>
+          <kbd>0</kbd><span>clear</span>
+          <kbd>A</kbd><span>gray trait</span>
+          <kbd>R</kbd><span>red trait</span>
+          <kbd>B</kbd><span>blue trait</span>
+          <kbd>G</kbd><span>green trait</span>
+          <kbd>H</kbd><span>half fill</span>
+          <kbd>X</kbd><span>cross</span>
           <kbd>P</kbd><span>couple</span>
           <kbd>C</kbd><span>child</span>
           <kbd>S</kbd><span>sibling</span>
