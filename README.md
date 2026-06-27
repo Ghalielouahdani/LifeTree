@@ -2,15 +2,34 @@
 
 LifeTree is a fast static drawing tool for recreating pedigree and family-tree diagrams during exam practice.
 
-## Open the app
+## How to run it
 
-Open:
+Clone the repository:
+
+```bash
+git clone https://github.com/Ghalielouahdani/LifeTree.git
+cd LifeTree
+```
+
+Then open the app directly in your browser:
 
 ```text
 pedigree-speed-drawer/index.html
 ```
 
 No install step is required. The app runs fully in the browser.
+
+If your browser blocks local file features, run a local server instead:
+
+```bash
+python3 -m http.server 8000
+```
+
+Then open:
+
+```text
+http://localhost:8000/pedigree-speed-drawer/
+```
 
 ## What it does
 
