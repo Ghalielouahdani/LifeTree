@@ -214,7 +214,8 @@ button {
 }
 
 .trait-swatch,
-.cross-swatch {
+.cross-swatch,
+.bar-swatch {
   display: inline-block;
   width: 20px;
   height: 20px;
@@ -251,6 +252,11 @@ button {
   background: #fff;
 }
 
+.bar-swatch {
+  position: relative;
+  background: #fff;
+}
+
 .cross-swatch::before,
 .cross-swatch::after {
   position: absolute;
@@ -270,6 +276,16 @@ button {
   transform: rotate(-45deg);
 }
 
+.bar-swatch::before {
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 12px;
+  height: 3px;
+  background: var(--ink);
+  content: "";
+}
+
 .command-button {
   padding: 0 13px;
   font-weight: 650;
@@ -284,6 +300,7 @@ button {
 
 .tool-button.is-active,
 .shape-tool.is-active,
+.wide-button.is-on,
 .toggle-button.is-on {
   border-color: var(--line-dark);
   background: #e7f0fa;
@@ -436,7 +453,7 @@ input[type="range"] {
 #stage {
   display: block;
   width: 1800px;
-  height: 1200px;
+  height: 2400px;
   background: var(--paper);
   touch-action: none;
 }

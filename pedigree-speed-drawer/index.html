@@ -22,7 +22,7 @@
         </div>
 
         <div class="toolbar" aria-label="Drawing tools">
-          <button class="tool-button square-button" id="selectTool" title="Select / move (V)" aria-label="Select / move">
+          <button class="tool-button square-button" id="selectTool" title="Select / box select (V)" aria-label="Select / box select">
             <span aria-hidden="true">↖</span>
           </button>
           <button class="tool-button shape-tool" data-shape="female" title="Female / circle (F)" aria-label="Female / circle">
@@ -65,6 +65,10 @@
             <span class="cross-swatch" aria-hidden="true"></span>
             <kbd>X</kbd>
           </button>
+          <button class="tool-button square-button trait-tool" data-bar-toggle title="Horizontal mark (T)" aria-label="Horizontal mark">
+            <span class="bar-swatch" aria-hidden="true"></span>
+            <kbd>T</kbd>
+          </button>
         </div>
 
         <div class="toolbar command-toolbar" aria-label="Fast pedigree commands">
@@ -92,6 +96,7 @@
               <button class="wide-button" id="templateCoupleBtn">Couple</button>
               <button class="wide-button" id="templateNuclearBtn">Parents + 2</button>
               <button class="wide-button" id="templateThreeGenBtn">3 Gen</button>
+              <button class="wide-button" id="labelBtn">Label</button>
             </div>
           </section>
 
@@ -132,6 +137,11 @@
                 <span class="cross-swatch" aria-hidden="true"></span>
                 <span>Cross</span>
                 <kbd>X</kbd>
+              </button>
+              <button class="trait-choice" data-bar-toggle>
+                <span class="bar-swatch" aria-hidden="true"></span>
+                <span>Bar</span>
+                <kbd>T</kbd>
               </button>
             </div>
           </section>
@@ -179,7 +189,7 @@
         </aside>
 
         <div class="stage-wrap" id="stageWrap">
-          <svg id="stage" width="1800" height="1200" viewBox="0 0 1800 1200" role="img" aria-label="Pedigree drawing canvas">
+          <svg id="stage" width="1800" height="2400" viewBox="0 0 1800 2400" role="img" aria-label="Pedigree drawing canvas">
             <defs>
               <pattern id="minorGrid" width="20" height="20" patternUnits="userSpaceOnUse">
                 <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e8edf2" stroke-width="1" />
@@ -194,11 +204,12 @@
             </defs>
             <g id="referenceLayer"></g>
             <g id="gridLayer">
-              <rect x="0" y="0" width="1800" height="1200" fill="url(#majorGrid)" />
+              <rect x="0" y="0" width="1800" height="2400" fill="url(#majorGrid)" />
             </g>
             <g id="lineLayer"></g>
             <g id="nodeLayer"></g>
             <g id="generationLayer"></g>
+            <g id="selectionLayer"></g>
           </svg>
         </div>
       </section>
@@ -214,6 +225,8 @@
           <kbd>F</kbd><span>circle</span>
           <kbd>M</kbd><span>square</span>
           <kbd>U</kbd><span>diamond</span>
+          <kbd>V</kbd><span>select</span>
+          <kbd>L</kbd><span>label</span>
           <kbd>0</kbd><span>clear</span>
           <kbd>A</kbd><span>gray trait</span>
           <kbd>R</kbd><span>red trait</span>
@@ -221,6 +234,7 @@
           <kbd>G</kbd><span>green trait</span>
           <kbd>H</kbd><span>half fill</span>
           <kbd>X</kbd><span>cross</span>
+          <kbd>T</kbd><span>bar</span>
           <kbd>P</kbd><span>couple</span>
           <kbd>C</kbd><span>child</span>
           <kbd>S</kbd><span>sibling</span>

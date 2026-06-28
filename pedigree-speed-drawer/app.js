@@ -1,6 +1,6 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 const STAGE_WIDTH = 1800;
-const STAGE_HEIGHT = 1200;
+const STAGE_HEIGHT = 2400;
 const GRID_SIZE = 20;
 const PERSON_RADIUS = 36;
 const STORAGE_KEY = "pedigree-sprint-state-v2";
@@ -31,6 +31,7 @@ const state = {
   affectedMode: false,
   traitMode: "clear",
   crossMode: false,
+  barMode: false,
   nextId: 1,
   zoom: 1,
   settings: {
@@ -47,6 +48,7 @@ const state = {
 
 const els = {};
 let drag = null;
+let selectionDrag = null;
 let toastTimer = null;
 let timerState = {
   running: false,
@@ -75,6 +77,7 @@ function cacheElements() {
     "lineLayer",
     "nodeLayer",
     "generationLayer",
+    "selectionLayer",
     "diagramStats",
     "selectTool",
     "affectedBtn",
@@ -85,6 +88,7 @@ function cacheElements() {
     "templateCoupleBtn",
     "templateNuclearBtn",
     "templateThreeGenBtn",
+    "labelBtn",
     "snapBtn",
     "gridBtn",
     "generationBtn",
@@ -127,6 +131,10 @@ function bindControls() {
     button.addEventListener("click", () => toggleCross());
   });
 
+  document.querySelectorAll("[data-bar-toggle]").forEach((button) => {
+    button.addEventListener("click", () => toggleBar());
+  });
+
   els.selectTool.addEventListener("click", () => {
     state.tool = "select";
     render();
@@ -139,6 +147,7 @@ function bindControls() {
   els.templateCoupleBtn.addEventListener("click", () => insertCouple(true));
   els.templateNuclearBtn.addEventListener("click", () => insertNuclearFamily());
   els.templateThreeGenBtn.addEventListener("click", () => insertThreeGenerationBlock());
+  els.labelBtn.addEventListener("click", () => activateLabelTool());
   els.snapBtn.addEventListener("click", () => toggleSetting("snap"));
   els.gridBtn.addEventListener("click", () => toggleSetting("grid"));
   els.generationBtn.addEventListener("click", () => toggleSetting("generations"));
@@ -173,7 +182,7 @@ function seedSample() {
     createNode(1325, 150, "female", "clear"),
     createNode(1505, 150, "male", "red"),
     createNode(1120, 370, "male", "carrier"),
-    createNode(985, 600, "unknown", "blue", true)
+    createNode(985, 600, "unknown", "blue", true, true)
   ];
 
   state.relationships = [
@@ -186,7 +195,7 @@ function seedSample() {
   state.selectedRelationship = null;
 }
 
-function createNode(x, y, shape = state.shape, trait = state.traitMode, crossed = state.crossMode) {
+function createNode(x, y, shape = state.shape, trait = state.traitMode, crossed = state.crossMode, barred = state.barMode) {
   const normalizedTrait = normalizeTrait(trait);
   return {
     id: `n${state.nextId++}`,
@@ -196,6 +205,7 @@ function createNode(x, y, shape = state.shape, trait = state.traitMode, crossed 
     trait: normalizedTrait,
     status: normalizedTrait,
     crossed: Boolean(crossed),
+    barred: Boolean(barred),
     label: ""
   };
 }
@@ -214,6 +224,7 @@ function render() {
   renderRelationships();
   renderNodes();
   renderGenerationLabels();
+  renderSelectionBox();
   updateControls();
   autosave();
 }
@@ -394,6 +405,10 @@ function renderNodes() {
       group.append(drawCrossOverlay(node));
     }
 
+    if (node.barred) {
+      group.append(drawBarOverlay(node));
+    }
+
     if (node.label) {
       group.append(svg("text", {
         x: 0,
@@ -406,7 +421,6 @@ function renderNodes() {
     }
 
     group.addEventListener("pointerdown", onNodePointerDown);
-    group.addEventListener("dblclick", () => editLabel(node.id));
     fragment.append(group);
   }
 
@@ -512,6 +526,20 @@ function drawCrossOverlay(node) {
   return group;
 }
 
+function drawBarOverlay(node) {
+  const r = node.shape === "unknown" ? PERSON_RADIUS + 4 : PERSON_RADIUS - 6;
+  return svg("line", {
+    x1: -r,
+    y1: 0,
+    x2: r,
+    y2: 0,
+    stroke: "#111820",
+    "stroke-width": 6,
+    "stroke-linecap": "round",
+    "pointer-events": "none"
+  });
+}
+
 function renderGenerationLabels() {
   els.generationLayer.replaceChildren();
   if (!state.settings.generations || state.nodes.length === 0) return;
@@ -530,6 +558,24 @@ function renderGenerationLabels() {
   });
 }
 
+function renderSelectionBox() {
+  els.selectionLayer.replaceChildren();
+  if (!selectionDrag) return;
+
+  const rect = normalizeRect(selectionDrag.start, selectionDrag.current);
+  els.selectionLayer.append(svg("rect", {
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    fill: "rgba(204, 107, 45, 0.12)",
+    stroke: "#cc6b2d",
+    "stroke-width": 2,
+    "stroke-dasharray": "9 6",
+    "pointer-events": "none"
+  }));
+}
+
 function onStagePointerDown(event) {
   if (event.button !== 0) return;
   if (event.target.closest("[data-node-id]") || event.target.closest("[data-rel-id]")) return;
@@ -545,9 +591,63 @@ function onStagePointerDown(event) {
     return;
   }
 
-  clearSelection();
-  state.selectedRelationship = null;
+  startSelectionDrag(event, point);
+}
+
+function startSelectionDrag(event, point) {
+  event.preventDefault();
+  const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+  selectionDrag = {
+    start: point,
+    current: point,
+    additive,
+    existing: new Set(state.selectedNodes),
+    moved: false
+  };
+
+  window.addEventListener("pointermove", onSelectionPointerMove);
+  window.addEventListener("pointerup", onSelectionPointerUp, { once: true });
   render();
+}
+
+function onSelectionPointerMove(event) {
+  if (!selectionDrag) return;
+  selectionDrag.current = clientToSvg(event);
+  selectionDrag.moved = selectionDrag.moved || distance(selectionDrag.start, selectionDrag.current) > 6;
+  applySelectionRect();
+  render();
+}
+
+function onSelectionPointerUp() {
+  window.removeEventListener("pointermove", onSelectionPointerMove);
+  if (!selectionDrag) return;
+
+  if (!selectionDrag.moved) {
+    if (!selectionDrag.additive) clearSelection();
+  } else {
+    applySelectionRect();
+  }
+
+  const count = state.selectedNodes.size;
+  selectionDrag = null;
+  render();
+  if (count > 1) toast(`${count} selected`);
+}
+
+function applySelectionRect() {
+  if (!selectionDrag) return;
+
+  const rect = normalizeRect(selectionDrag.start, selectionDrag.current);
+  const selectedIds = state.nodes
+    .filter((node) => nodeIntersectsRect(node, rect))
+    .map((node) => node.id);
+
+  state.selectedRelationship = null;
+  state.selectedNodes.clear();
+  if (selectionDrag.additive) {
+    selectionDrag.existing.forEach((id) => state.selectedNodes.add(id));
+  }
+  selectedIds.forEach((id) => state.selectedNodes.add(id));
 }
 
 function onRelationshipPointerDown(event) {
@@ -568,6 +668,15 @@ function onNodePointerDown(event) {
   event.stopPropagation();
 
   const nodeId = event.currentTarget.dataset.nodeId;
+  if (state.tool === "label") {
+    state.selectedNodes.clear();
+    state.selectedRelationship = null;
+    state.selectedNodes.add(nodeId);
+    render();
+    editLabel(nodeId);
+    return;
+  }
+
   const additive = event.shiftKey || event.metaKey || event.ctrlKey;
   if (additive && state.selectedNodes.has(nodeId)) {
     state.selectedNodes.delete(nodeId);
@@ -707,6 +816,12 @@ function onKeyDown(event) {
     return;
   }
 
+  if (key === "t") {
+    event.preventDefault();
+    toggleBar();
+    return;
+  }
+
   if (key === "p") {
     event.preventDefault();
     insertCouple();
@@ -727,7 +842,7 @@ function onKeyDown(event) {
 
   if (key === "l") {
     event.preventDefault();
-    labelSelected();
+    activateLabelTool();
     return;
   }
 
@@ -773,7 +888,10 @@ function setTrait(trait) {
         const node = findNode(id);
         if (!node) continue;
         applyNodeTrait(node, normalizedTrait);
-        if (normalizedTrait === "clear") node.crossed = false;
+        if (normalizedTrait === "clear") {
+          node.crossed = false;
+          node.barred = false;
+        }
       }
     });
     return;
@@ -782,7 +900,10 @@ function setTrait(trait) {
   state.traitMode = normalizedTrait;
   state.affectedMode = normalizedTrait === "affected";
   state.tool = "person";
-  if (normalizedTrait === "clear") state.crossMode = false;
+  if (normalizedTrait === "clear") {
+    state.crossMode = false;
+    state.barMode = false;
+  }
   render();
   toast(`${TRAITS[normalizedTrait].name} brush`);
 }
@@ -803,6 +924,24 @@ function toggleCross() {
   state.tool = "person";
   render();
   toast(state.crossMode ? "Cross brush on" : "Cross brush off");
+}
+
+function toggleBar() {
+  if (state.selectedNodes.size > 0) {
+    mutate("Bar changed", () => {
+      const selected = [...state.selectedNodes].map(findNode).filter(Boolean);
+      const shouldBar = selected.some((node) => !node.barred);
+      selected.forEach((node) => {
+        node.barred = shouldBar;
+      });
+    });
+    return;
+  }
+
+  state.barMode = !state.barMode;
+  state.tool = "person";
+  render();
+  toast(state.barMode ? "Bar brush on" : "Bar brush off");
 }
 
 function insertCouple(forceTemplate = false) {
@@ -893,6 +1032,7 @@ function addChild() {
     clearSelection();
     state.selectedNodes.add(child.id);
     state.selectedRelationship = relationship.id;
+    revealNode(child);
   });
 }
 
@@ -918,6 +1058,7 @@ function addSibling() {
     clearSelection();
     state.selectedNodes.add(child.id);
     state.selectedRelationship = relationship.id;
+    revealNode(child);
   });
 }
 
@@ -964,6 +1105,7 @@ function insertNuclearFamily() {
     state.relationships.push(relationship);
     clearSelection();
     state.selectedRelationship = relationship.id;
+    revealNode(childB);
   });
 }
 
@@ -982,6 +1124,7 @@ function insertThreeGenerationBlock() {
     state.relationships.push(relA, relB);
     clearSelection();
     state.selectedRelationship = relB.id;
+    revealNode(child);
   });
 }
 
@@ -1138,6 +1281,18 @@ function labelSelected() {
   editLabel([...state.selectedNodes][0]);
 }
 
+function activateLabelTool() {
+  if (state.selectedNodes.size === 1) {
+    editLabel([...state.selectedNodes][0]);
+    return;
+  }
+
+  state.tool = "label";
+  state.selectedRelationship = null;
+  render();
+  toast("Click a member to label");
+}
+
 function editLabel(nodeId) {
   const node = findNode(nodeId);
   if (!node) return;
@@ -1247,6 +1402,7 @@ function snapshot() {
     affectedMode: state.affectedMode,
     traitMode: state.traitMode,
     crossMode: state.crossMode,
+    barMode: state.barMode,
     settings: state.settings
   });
 }
@@ -1260,6 +1416,7 @@ function restoreSnapshot(serialized) {
   state.tool = data.tool || "person";
   state.traitMode = normalizeTrait(data.traitMode || (data.affectedMode ? "affected" : "clear"));
   state.crossMode = Boolean(data.crossMode);
+  state.barMode = Boolean(data.barMode);
   state.affectedMode = state.traitMode === "affected";
   normalizeNodes();
   state.settings = {
@@ -1285,6 +1442,7 @@ function autosave() {
       affectedMode: state.affectedMode,
       traitMode: state.traitMode,
       crossMode: state.crossMode,
+      barMode: state.barMode,
       settings: state.settings,
       reference
     }));
@@ -1306,6 +1464,7 @@ function loadSavedState() {
     state.tool = data.tool || "person";
     state.traitMode = normalizeTrait(data.traitMode || (data.affectedMode ? "affected" : "clear"));
     state.crossMode = Boolean(data.crossMode);
+    state.barMode = Boolean(data.barMode);
     state.affectedMode = state.traitMode === "affected";
     normalizeNodes();
     state.settings = {
@@ -1331,6 +1490,7 @@ function exportJson() {
     nextId: state.nextId,
     traitMode: state.traitMode,
     crossMode: state.crossMode,
+    barMode: state.barMode,
     settings: state.settings
   }, null, 2);
   downloadBlob(new Blob([data], { type: "application/json" }), "pedigree-sprint.json");
@@ -1349,6 +1509,7 @@ function handleJsonUpload(event) {
       state.nextId = Math.max(data.nextId || 1, computeNextId());
       state.traitMode = normalizeTrait(data.traitMode || state.traitMode);
       state.crossMode = Boolean(data.crossMode);
+      state.barMode = Boolean(data.barMode);
       state.affectedMode = state.traitMode === "affected";
       normalizeNodes();
       state.settings = {
@@ -1467,7 +1628,13 @@ function updateControls() {
     const crossActive = selected.length ? selected.some((node) => node.crossed) : state.crossMode;
     button.classList.toggle("is-hot", crossActive);
   });
+  document.querySelectorAll("[data-bar-toggle]").forEach((button) => {
+    const selected = [...state.selectedNodes].map(findNode).filter(Boolean);
+    const barActive = selected.length ? selected.some((node) => node.barred) : state.barMode;
+    button.classList.toggle("is-hot", barActive);
+  });
   els.selectTool.classList.toggle("is-active", state.tool === "select");
+  els.labelBtn.classList.toggle("is-on", state.tool === "label");
   els.snapBtn.classList.toggle("is-on", state.settings.snap);
   els.snapBtn.setAttribute("aria-pressed", String(state.settings.snap));
   els.gridBtn.classList.toggle("is-on", state.settings.grid);
@@ -1484,6 +1651,33 @@ function clientToSvg(event) {
   point.x = event.clientX;
   point.y = event.clientY;
   return point.matrixTransform(els.stage.getScreenCTM().inverse());
+}
+
+function normalizeRect(start, end) {
+  const x = Math.min(start.x, end.x);
+  const y = Math.min(start.y, end.y);
+  const width = Math.abs(end.x - start.x);
+  const height = Math.abs(end.y - start.y);
+  return {
+    x,
+    y,
+    width,
+    height,
+    x2: x + width,
+    y2: y + height
+  };
+}
+
+function nodeIntersectsRect(node, rect) {
+  const radius = shapeOffset(node) + 12;
+  return node.x + radius >= rect.x &&
+    node.x - radius <= rect.x2 &&
+    node.y + radius >= rect.y &&
+    node.y - radius <= rect.y2;
+}
+
+function distance(start, end) {
+  return Math.hypot(end.x - start.x, end.y - start.y);
 }
 
 function insertionPoint() {
@@ -1503,6 +1697,28 @@ function centerInitialView() {
   });
 }
 
+function revealNode(node) {
+  requestAnimationFrame(() => {
+    const padding = 150;
+    const left = (node.x - padding) * state.zoom;
+    const right = (node.x + padding) * state.zoom;
+    const top = (node.y - padding) * state.zoom;
+    const bottom = (node.y + padding) * state.zoom;
+
+    if (left < els.stageWrap.scrollLeft) {
+      els.stageWrap.scrollLeft = Math.max(0, left);
+    } else if (right > els.stageWrap.scrollLeft + els.stageWrap.clientWidth) {
+      els.stageWrap.scrollLeft = right - els.stageWrap.clientWidth;
+    }
+
+    if (top < els.stageWrap.scrollTop) {
+      els.stageWrap.scrollTop = Math.max(0, top);
+    } else if (bottom > els.stageWrap.scrollTop + els.stageWrap.clientHeight) {
+      els.stageWrap.scrollTop = bottom - els.stageWrap.clientHeight;
+    }
+  });
+}
+
 function clearSelection() {
   state.selectedNodes.clear();
   state.selectedRelationship = null;
@@ -1513,6 +1729,7 @@ function normalizeNodes() {
     const trait = normalizeTrait(node.trait || node.status);
     applyNodeTrait(node, trait);
     node.crossed = Boolean(node.crossed);
+    node.barred = Boolean(node.barred);
   });
 }
 
